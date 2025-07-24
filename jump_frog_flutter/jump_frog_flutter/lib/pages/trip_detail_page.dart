@@ -349,194 +349,272 @@ class _CommentModalState extends State<_CommentModal> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('评论 - ${widget.plan.title}'),
-      content: SizedBox(
-        width: 340,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.comments.isNotEmpty)
-              ...widget.comments.map(
-                (c) => Padding(
+    final String title = (widget.plan.title.trim().isEmpty)
+        ? '评论'
+        : '评论 - ${widget.plan.title}';
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 60),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.black54),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // 评分
+              Row(
+                children: [
+                  ...List.generate(
+                    5,
+                    (i) => IconButton(
+                      icon: Icon(
+                        Icons.star,
+                        color: i < _rating
+                            ? Colors.orange
+                            : Colors.grey.shade300,
+                      ),
+                      iconSize: 28,
+                      padding: EdgeInsets.zero,
+                      onPressed: () => setState(() => _rating = i + 1),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _rating == 0 ? '未评分' : '$_rating 分',
+                    style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // 输入框
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: '写下你的体验...（最多200字）',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                  ),
+                  minLines: 4,
+                  maxLines: 6,
+                  maxLength: 200,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // 图片九宫格
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ..._images.map(
+                    (img) => Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        GestureDetector(
+                          onTap: widget.onImageTap != null
+                              ? () => widget.onImageTap!(img)
+                              : null,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              File(img),
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _images.remove(img)),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_images.length < 9)
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.add_a_photo,
+                          color: Colors.green,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              // 历史评论
+              if (widget.comments.isNotEmpty)
+                Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            '${c.user}: ',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          ...List.generate(
-                            5,
-                            (i) => Icon(
-                              Icons.star,
-                              size: 14,
-                              color: i < c.rating ? Colors.orange : Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '  ${c.time}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+                      const Divider(),
+                      const Text(
+                        '大家的评论',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 32, top: 2),
-                        child: Text(c.content),
-                      ),
-                      if (c.images.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32, top: 4),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: c.images
-                                .map(
-                                  (img) => GestureDetector(
-                                    onTap: widget.onImageTap != null
-                                        ? () => widget.onImageTap!(img)
-                                        : null,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.file(
-                                        File(img),
-                                        width: 48,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                      ),
+                      const SizedBox(height: 6),
+                      ...widget.comments.map(
+                        (c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    '${c.user}: ',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                )
-                                .toList(),
+                                  ...List.generate(
+                                    5,
+                                    (i) => Icon(
+                                      Icons.star,
+                                      size: 14,
+                                      color: i < c.rating
+                                          ? Colors.orange
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '  ${c.time}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 32,
+                                  top: 2,
+                                ),
+                                child: Text(c.content),
+                              ),
+                              if (c.images.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 32,
+                                    top: 4,
+                                  ),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: c.images
+                                        .map(
+                                          (img) => GestureDetector(
+                                            onTap: widget.onImageTap != null
+                                                ? () => widget.onImageTap!(img)
+                                                : null,
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Image.file(
+                                                File(img),
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            if (widget.comments.isEmpty)
-              const Text('暂无评论', style: TextStyle(color: Colors.grey)),
-            const Divider(),
-            const Text('我的评论：'),
-            Row(
-              children: [
-                ...List.generate(
-                  5,
-                  (i) => IconButton(
-                    icon: Icon(
-                      Icons.star,
-                      color: i < _rating ? Colors.orange : Colors.grey,
-                    ),
-                    iconSize: 22,
-                    padding: EdgeInsets.zero,
-                    onPressed: () => setState(() => _rating = i + 1),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _rating == 0 ? '未评分' : '$_rating 分',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
-            TextField(
-              controller: _controller,
-              decoration: const InputDecoration(hintText: '写下你的体验...'),
-              minLines: 2,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.add_a_photo),
-                  label: const Text('添加图片'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '已选${_images.length}张',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
-            if (_images.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _images
-                      .map(
-                        (img) => Stack(
-                          alignment: Alignment.topRight,
-                          children: [
-                            GestureDetector(
-                              onTap: widget.onImageTap != null
-                                  ? () => widget.onImageTap!(img)
-                                  : null,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  File(img),
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => setState(() => _images.remove(img)),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 14,
-                                ),
-                              ),
-                            ),
-                          ],
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (_controller.text.trim().isEmpty || _rating == 0)
+                          return;
+                        widget.onSubmit(
+                          _controller.text.trim(),
+                          _rating,
+                          List.from(_images),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                      )
-                      .toList(),
-                ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      child: const Text('发布'),
+                    ),
+                  ),
+                ],
               ),
-          ],
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_controller.text.trim().isEmpty || _rating == 0) return;
-            widget.onSubmit(
-              _controller.text.trim(),
-              _rating,
-              List.from(_images),
-            );
-          },
-          child: const Text('提交'),
-        ),
-      ],
     );
   }
 }

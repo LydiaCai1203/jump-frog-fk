@@ -237,10 +237,6 @@ class _HomePageState extends State<HomePage> {
                         icon: FontAwesomeIcons.comments,
                         label: '社区分享',
                       ),
-                      _FeatureChipFa(
-                        icon: FontAwesomeIcons.heart,
-                        label: '治愈体验',
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
