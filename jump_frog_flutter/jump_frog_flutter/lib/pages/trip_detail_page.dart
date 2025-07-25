@@ -24,6 +24,7 @@ class TripDetailPage extends StatefulWidget {
 class _TripDetailPageState extends State<TripDetailPage> {
   int? _commentPlanIndex;
   String? _previewImage;
+  int? _actionIndex; // 当前显示操作按钮的行程项索引
   final List<_PlanItem> _plans = [
     _PlanItem(time: '08:00', type: '交通', title: '', desc: ''),
     _PlanItem(time: '12:00', type: '游玩', title: '景点A', desc: '参观著名景点A'),
@@ -87,6 +88,18 @@ class _TripDetailPageState extends State<TripDetailPage> {
     });
   }
 
+  void _showAction(int i) {
+    setState(() {
+      _actionIndex = _actionIndex == i ? null : i;
+    });
+  }
+
+  void _hideAction() {
+    setState(() {
+      _actionIndex = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final plans = [
@@ -98,122 +111,168 @@ class _TripDetailPageState extends State<TripDetailPage> {
       ),
       ..._plans.sublist(1),
     ];
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            title: Text('${widget.route} → ${widget.destination}'),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.status == '进行中'
-                      ? Colors.green.shade100
-                      : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    widget.status,
-                    style: TextStyle(
-                      color: widget.status == '进行中'
-                          ? Colors.green
-                          : Colors.black54,
-                      fontWeight: FontWeight.bold,
+    return GestureDetector(
+      onTap: _hideAction,
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              title: Text('${widget.route} → ${widget.destination}'),
+              actions: [
+                Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.status == '进行中'
+                        ? Colors.green.shade100
+                        : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.status,
+                      style: TextStyle(
+                        color: widget.status == '进行中'
+                            ? Colors.green
+                            : Colors.black54,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                color: Colors.green.shade50,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 18,
-                  horizontal: 18,
+              ],
+            ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  color: Colors.green.shade50,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 18,
+                    horizontal: 18,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: Colors.green.shade400,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '出发日期: ${widget.startDate}',
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        Icons.schedule,
+                        color: Colors.green.shade400,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(widget.days, style: const TextStyle(fontSize: 15)),
+                    ],
+                  ),
                 ),
-                child: Row(
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: plans.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) => Column(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            _showAction(i);
+                          },
+                          child: _PlanCard(
+                            plan: plans[i],
+                            showActions: _actionIndex == i,
+                            onNavigation: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('导航功能待实现')),
+                                ),
+                            onTaxi: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('打车功能待实现')),
+                                ),
+                            onComment: () => _showCommentModal(i),
+                            onComplete: () =>
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('标记完成功能待实现')),
+                                ),
+                          ),
+                        ),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _actionIndex == i
+                              ? _PlanActions(
+                                  onNavigation: () =>
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('导航功能待实现'),
+                                        ),
+                                      ),
+                                  onTaxi: () => ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('打车功能待实现'),
+                                        ),
+                                      ),
+                                  onComment: () => _showCommentModal(i),
+                                  onComplete: () =>
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('标记完成功能待实现'),
+                                        ),
+                                      ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_previewImage != null)
+            GestureDetector(
+              onTap: _closePreview,
+              child: Container(
+                color: Colors.black.withOpacity(0.85),
+                alignment: Alignment.center,
+                child: Stack(
+                  alignment: Alignment.topRight,
                   children: [
-                    Icon(
-                      Icons.calendar_today,
-                      color: Colors.green.shade400,
-                      size: 20,
+                    Center(
+                      child: Image.file(
+                        File(_previewImage!),
+                        width: 320,
+                        fit: BoxFit.contain,
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '出发日期: ${widget.startDate}',
-                      style: const TextStyle(fontSize: 15),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      onPressed: _closePreview,
                     ),
-                    const Spacer(),
-                    Icon(
-                      Icons.schedule,
-                      color: Colors.green.shade400,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(widget.days, style: const TextStyle(fontSize: 15)),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: plans.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) => _PlanCard(
-                    plan: plans[i],
-                    onNavigation: () => ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('导航功能待实现'))),
-                    onTaxi: () => ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('打车功能待实现'))),
-                    onComment: () => _showCommentModal(i),
-                    onComplete: () => ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('标记完成功能待实现'))),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_previewImage != null)
-          GestureDetector(
-            onTap: _closePreview,
-            child: Container(
-              color: Colors.black.withOpacity(0.85),
-              alignment: Alignment.center,
-              child: Stack(
-                alignment: Alignment.topRight,
-                children: [
-                  Center(
-                    child: Image.file(
-                      File(_previewImage!),
-                      width: 320,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                    onPressed: _closePreview,
-                  ),
-                ],
-              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -233,12 +292,14 @@ class _PlanItem {
 
 class _PlanCard extends StatelessWidget {
   final _PlanItem plan;
+  final bool showActions;
   final VoidCallback? onNavigation;
   final VoidCallback? onTaxi;
   final VoidCallback? onComment;
   final VoidCallback? onComplete;
   const _PlanCard({
     required this.plan,
+    this.showActions = false,
     this.onNavigation,
     this.onTaxi,
     this.onComment,
@@ -269,8 +330,36 @@ class _PlanCard extends StatelessWidget {
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(plan.desc),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      // 不再显示操作按钮
+    );
+  }
+}
+
+class _PlanActions extends StatelessWidget {
+  final VoidCallback? onNavigation;
+  final VoidCallback? onTaxi;
+  final VoidCallback? onComment;
+  final VoidCallback? onComplete;
+  const _PlanActions({
+    this.onNavigation,
+    this.onTaxi,
+    this.onComment,
+    this.onComplete,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 8, spreadRadius: 1),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(
             icon: SvgPicture.asset(
@@ -292,7 +381,7 @@ class _PlanCard extends StatelessWidget {
               width: 28,
               height: 28,
             ),
-            tooltip: '完成',
+            tooltip: '标记完成',
             onPressed: onComplete,
           ),
           IconButton(
