@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class TripDetailPage extends StatefulWidget {
   final String route;
@@ -57,11 +58,29 @@ class _TripDetailPageState extends State<TripDetailPage> {
   Position? _position;
   String _locationStatus = '定位中...';
   bool _locating = false;
+  String? _address;
+  int _currentPlanIndex = 0; // 当前执行的行程项索引
 
   @override
   void initState() {
     super.initState();
     _getLocation();
+    _updateCurrentPlanIndex();
+  }
+
+  void _updateCurrentPlanIndex() {
+    // 根据当前时间确定正在执行的行程项
+    final now = DateTime.now();
+    final currentTime =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    for (int i = 0; i < _plans.length; i++) {
+      if (currentTime.compareTo(_plans[i].time) >= 0) {
+        _currentPlanIndex = i;
+      } else {
+        break;
+      }
+    }
   }
 
   Future<void> _getLocation() async {
@@ -69,6 +88,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
     setState(() {
       _locating = true;
       _locationStatus = '定位中...';
+      _address = null;
     });
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -86,12 +106,44 @@ class _TripDetailPageState extends State<TripDetailPage> {
       }
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
+      debugPrint('TripDetailPage 获取到位置: ${pos.latitude}, ${pos.longitude}');
+
+      // 获取地址信息
+      String? address;
+      try {
+        debugPrint('TripDetailPage 开始获取地址信息');
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          pos.latitude,
+          pos.longitude,
+        );
+        debugPrint('TripDetailPage 获取到 ${placemarks.length} 个地址信息');
+
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          debugPrint(
+            'TripDetailPage 地址信息: locality=${p.locality}, administrativeArea=${p.administrativeArea}, country=${p.country}',
+          );
+          // 优先显示城市名，然后是省份，最后是国家
+          address = p.locality ?? p.administrativeArea ?? p.country ?? '';
+          // 去除可能的空格
+          if (address.isNotEmpty) {
+            address = address.trim();
+          }
+        }
+      } catch (e) {
+        debugPrint('TripDetailPage 获取地址信息失败: $e');
+        address = null;
+      }
+
       setState(() {
         _position = pos;
         _locationStatus = '已定位';
+        _address = address;
         _locating = false;
       });
+      debugPrint('TripDetailPage 定位完成，地址: $address');
     } catch (e) {
       debugPrint('TripDetailPage 定位失败异常: ' + e.toString());
       setState(() {
@@ -224,77 +276,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                     ],
                   ),
                 ),
-                // 当前位置卡片
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 8,
-                  ),
-                  child: Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.location_on,
-                                color: Colors.green,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                '当前位置',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              const Spacer(),
-                              if (_locating)
-                                const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              if (!_locating)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.refresh,
-                                    color: Colors.green,
-                                  ),
-                                  tooltip: '刷新位置',
-                                  onPressed: _getLocation,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _locationStatus,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          if (_position != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                '坐标: ${_position!.latitude.toStringAsFixed(6)}, ${_position!.longitude.toStringAsFixed(6)}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 8),
                 Expanded(
                   child: ListView.separated(
@@ -309,6 +290,13 @@ class _TripDetailPageState extends State<TripDetailPage> {
                           child: _PlanCard(
                             plan: plans[i],
                             showActions: _actionIndex == i,
+                            isCompleted: i < _currentPlanIndex,
+                            isCurrent: i == _currentPlanIndex,
+                            isLocating: _locating && i == _currentPlanIndex,
+                            address: i == _currentPlanIndex ? _address : null,
+                            locationStatus: i == _currentPlanIndex
+                                ? _locationStatus
+                                : null,
                             onNavigation: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('导航功能待实现')),
@@ -322,6 +310,9 @@ class _TripDetailPageState extends State<TripDetailPage> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('标记完成功能待实现')),
                                 ),
+                            onRefreshLocation: i == _currentPlanIndex
+                                ? _getLocation
+                                : null,
                           ),
                         ),
                         AnimatedSwitcher(
@@ -411,44 +402,123 @@ class _PlanItem {
 class _PlanCard extends StatelessWidget {
   final _PlanItem plan;
   final bool showActions;
+  final bool isCompleted;
+  final bool isCurrent;
+  final bool isLocating;
+  final String? address;
+  final String? locationStatus;
   final VoidCallback? onNavigation;
   final VoidCallback? onTaxi;
   final VoidCallback? onComment;
   final VoidCallback? onComplete;
+  final VoidCallback? onRefreshLocation;
   const _PlanCard({
     required this.plan,
     this.showActions = false,
+    this.isCompleted = false,
+    this.isCurrent = false,
+    this.isLocating = false,
+    this.address,
+    this.locationStatus,
     this.onNavigation,
     this.onTaxi,
     this.onComment,
     this.onComplete,
+    this.onRefreshLocation,
   });
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            plan.time,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
+    return Container(
+      color: isCompleted ? Colors.grey.shade50 : Colors.white,
+      child: ListTile(
+        leading: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              plan.time,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isCompleted ? Colors.grey : Colors.green,
+              ),
             ),
+            const SizedBox(height: 2),
+            Text(
+              plan.type,
+              style: TextStyle(
+                fontSize: 12,
+                color: isCompleted ? Colors.grey.shade400 : Colors.black54,
+              ),
+            ),
+            if (isCompleted)
+              const Icon(Icons.check_circle, color: Colors.green, size: 16),
+          ],
+        ),
+        title: Text(
+          plan.title,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isCompleted ? Colors.grey : Colors.black87,
           ),
-          const SizedBox(height: 2),
-          Text(
-            plan.type,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              plan.desc,
+              style: TextStyle(
+                color: isCompleted ? Colors.grey.shade500 : Colors.black54,
+              ),
+            ),
+            // 只在当前执行的行程项中显示定位信息
+            if (isCurrent && !isCompleted) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: isLocating ? Colors.blue : Colors.green,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  if (isLocating)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    )
+                  else if (address != null && address!.isNotEmpty)
+                    Text(
+                      address!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    )
+                  else if (locationStatus != null)
+                    Text(
+                      locationStatus!,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  const Spacer(),
+                  if (!isLocating && onRefreshLocation != null)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.refresh,
+                        color: Colors.green,
+                        size: 14,
+                      ),
+                      tooltip: '刷新位置',
+                      onPressed: onRefreshLocation,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
-      title: Text(
-        plan.title,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(plan.desc),
-      // 不再显示操作按钮
     );
   }
 }
