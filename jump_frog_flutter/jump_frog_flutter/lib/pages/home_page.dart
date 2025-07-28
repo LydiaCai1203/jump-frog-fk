@@ -2,6 +2,133 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'trip_detail_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:app_settings/app_settings.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+class _DanmakuWidget extends StatefulWidget {
+  final List<String> danmakuList;
+
+  const _DanmakuWidget({required this.danmakuList});
+
+  @override
+  State<_DanmakuWidget> createState() => _DanmakuWidgetState();
+}
+
+class _DanmakuWidgetState extends State<_DanmakuWidget> {
+  double _danmakuOffset = 0;
+  double _danmakuContentWidth = 0;
+  double _screenWidth = 0;
+  late Timer _danmakuTimer;
+  final GlobalKey _danmakuKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initDanmaku());
+  }
+
+  void _initDanmaku() {
+    _screenWidth = MediaQuery.of(context).size.width;
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _danmakuContentWidth = _danmakuKey.currentContext?.size?.width ?? 400;
+      if (_danmakuContentWidth < _screenWidth) {
+        _danmakuContentWidth = _screenWidth + 200;
+      }
+      _danmakuOffset = _screenWidth;
+      _danmakuTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+        if (mounted) {
+          setState(() {
+            _danmakuOffset -= 2.0;
+            if (_danmakuOffset < -_danmakuContentWidth) {
+              _danmakuOffset = _screenWidth;
+            }
+          });
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _danmakuTimer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final danmakuRow = Row(
+      key: _danmakuKey,
+      children: [
+        ...widget.danmakuList.map(
+          (text) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.shade100,
+                  blurRadius: 2,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.emoji_nature, color: Colors.green, size: 18),
+                const SizedBox(width: 4),
+                Text(text, style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+          ),
+        ),
+        ...widget.danmakuList.map(
+          (text) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.shade100,
+                  blurRadius: 2,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.emoji_nature, color: Colors.green, size: 18),
+                const SizedBox(width: 4),
+                Text(text, style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return Container(
+      height: 38,
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 2),
+      child: Stack(
+        children: [
+          Positioned(
+            left: _danmakuOffset,
+            top: 0,
+            bottom: 0,
+            child: danmakuRow,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -62,41 +189,166 @@ class _HomePageState extends State<HomePage> {
     '小孙：美食推荐很实用，吃得很开心！',
   ];
 
-  double _danmakuOffset = 0;
-  double _danmakuContentWidth = 0;
-  double _screenWidth = 0;
-  late Timer _danmakuTimer;
-  final GlobalKey _danmakuKey = GlobalKey();
+  Position? _position;
+  String _locationStatus = '定位中...';
+  bool _locating = false;
+  String? _address;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initDanmaku());
+    _getLocation();
   }
 
-  void _initDanmaku() {
-    _screenWidth = MediaQuery.of(context).size.width;
-    setState(() {});
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _danmakuContentWidth = _danmakuKey.currentContext?.size?.width ?? 400;
-      if (_danmakuContentWidth < _screenWidth) {
-        _danmakuContentWidth = _screenWidth + 200;
-      }
-      _danmakuOffset = _screenWidth;
-      _danmakuTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-        setState(() {
-          _danmakuOffset -= 1.0;
-          if (_danmakuOffset < -_danmakuContentWidth) {
-            _danmakuOffset = _screenWidth;
-          }
-        });
-      });
+  Future<void> _showLocationServiceDisabledDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('定位服务未启用'),
+        content: const Text('请在系统设置中开启定位服务，否则无法获取当前位置。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('知道了'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              AppSettings.openAppSettings();
+            },
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showLocationDeniedDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('定位权限未开启'),
+        content: const Text('请在系统设置中为小青蛙的旅行日记开启定位权限，否则无法获取当前位置。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('知道了'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              AppSettings.openAppSettings();
+            },
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _getLocation() async {
+    debugPrint('调用 _getLocation');
+    setState(() {
+      _locating = true;
+      _locationStatus = '定位中...';
+      _address = null;
     });
+
+    try {
+      // 检查定位服务是否启用
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        debugPrint('定位服务未启用');
+        setState(() {
+          _locationStatus = '定位服务未启用';
+          _locating = false;
+        });
+        _showLocationServiceDisabledDialog();
+        return;
+      }
+
+      // 检查权限
+      LocationPermission permission = await Geolocator.checkPermission();
+      debugPrint('当前权限状态: $permission');
+
+      if (permission == LocationPermission.denied) {
+        debugPrint('请求定位权限');
+        permission = await Geolocator.requestPermission();
+        debugPrint('请求权限后状态: $permission');
+      }
+
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        debugPrint('定位权限被拒绝: $permission');
+        setState(() {
+          _locationStatus = '未授权，无法获取定位权限';
+          _locating = false;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          debugPrint('准备弹出定位权限弹窗');
+          _showLocationDeniedDialog();
+        });
+        return;
+      }
+
+      // 获取位置
+      debugPrint('开始获取位置信息');
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      debugPrint('获取到位置: ${pos.latitude}, ${pos.longitude}');
+
+      // 获取地址信息
+      String? address;
+      try {
+        debugPrint('开始获取地址信息');
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          pos.latitude,
+          pos.longitude,
+        );
+        debugPrint('获取到 ${placemarks.length} 个地址信息');
+
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          debugPrint(
+            '地址信息: locality=${p.locality}, administrativeArea=${p.administrativeArea}, country=${p.country}',
+          );
+          // 优先显示城市名，然后是省份，最后是国家
+          address = p.locality ?? p.administrativeArea ?? p.country ?? '';
+          // 去除可能的空格
+          if (address.isNotEmpty) {
+            address = address.trim();
+          }
+        }
+      } catch (e) {
+        debugPrint('获取地址信息失败: $e');
+        address = null;
+      }
+
+      setState(() {
+        _position = pos;
+        _locationStatus = '已定位';
+        _address = address;
+        _locating = false;
+      });
+      debugPrint('定位完成，地址: $address');
+      debugPrint('地址长度: ${address?.length}');
+      debugPrint('地址是否为空: ${address?.isEmpty}');
+      debugPrint(
+        '状态更新: _locating=$_locating, _address=$_address, _position=${_position != null}',
+      );
+    } catch (e) {
+      debugPrint('定位失败异常: $e');
+      setState(() {
+        _locationStatus = '定位失败: ${e.toString().split(':').last.trim()}';
+        _locating = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _danmakuTimer.cancel();
     super.dispose();
   }
 
@@ -123,58 +375,12 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final danmakuRow = Row(
-      key: _danmakuKey,
-      children: [
-        ..._danmakuList.map(
-          (text) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 18),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.shade100,
-                  blurRadius: 2,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.emoji_nature, color: Colors.green, size: 18),
-                const SizedBox(width: 4),
-                Text(text, style: const TextStyle(color: Colors.black87)),
-              ],
-            ),
-          ),
-        ),
-        ..._danmakuList.map(
-          (text) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 18),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.shade100,
-                  blurRadius: 2,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.emoji_nature, color: Colors.green, size: 18),
-                const SizedBox(width: 4),
-                Text(text, style: const TextStyle(color: Colors.black87)),
-              ],
-            ),
-          ),
-        ),
-      ],
+    // 调试信息
+    debugPrint(
+      'Build - _locating: $_locating, _address: "$_address", _position: ${_position != null}',
+    );
+    debugPrint(
+      'Build - _address is null: ${_address == null}, _address isEmpty: ${_address?.isEmpty}',
     );
 
     return Scaffold(
@@ -185,16 +391,72 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(width: 8),
             const Text('小青蛙的旅行日记'),
             const Spacer(),
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on,
-                  color: Colors.redAccent,
-                  size: 20,
-                ),
-                const SizedBox(width: 4),
-                Text('定位中...', style: TextStyle(fontSize: 14)),
-              ],
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 定位状态图标
+                  Icon(
+                    Icons.location_on,
+                    color: _locating
+                        ? Colors.blue
+                        : (_position != null ||
+                              (_address != null && _address!.isNotEmpty))
+                        ? Colors.green
+                        : (_locationStatus.contains('失败') ||
+                              _locationStatus.contains('未授权') ||
+                              _locationStatus.contains('未启用'))
+                        ? Colors.red
+                        : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 4),
+
+                  // 定位状态显示
+                  if (_locating)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else if (_address != null && _address!.isNotEmpty)
+                    Text(
+                      _address!,
+                      style: const TextStyle(fontSize: 13, color: Colors.green),
+                    )
+                  else if (_position != null)
+                    Text(
+                      '${_position!.latitude.toStringAsFixed(4)}, ${_position!.longitude.toStringAsFixed(4)}',
+                      style: const TextStyle(fontSize: 12, color: Colors.green),
+                    )
+                  else
+                    Text(
+                      _locationStatus,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            (_locationStatus.contains('失败') ||
+                                _locationStatus.contains('未授权') ||
+                                _locationStatus.contains('未启用'))
+                            ? Colors.red
+                            : Colors.grey,
+                      ),
+                    ),
+
+                  // 刷新按钮
+                  IconButton(
+                    icon: const Icon(
+                      Icons.refresh,
+                      size: 18,
+                      color: Colors.green,
+                    ),
+                    tooltip: '刷新定位',
+                    onPressed: _getLocation,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -258,21 +520,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             // 弹幕区
-            Container(
-              height: 38,
-              color: Colors.white,
-              margin: const EdgeInsets.only(bottom: 2),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: _danmakuOffset,
-                    top: 0,
-                    bottom: 0,
-                    child: danmakuRow,
-                  ),
-                ],
-              ),
-            ),
+            _DanmakuWidget(danmakuList: _danmakuList),
             // 行程选择
             Padding(
               padding: const EdgeInsets.all(16.0),

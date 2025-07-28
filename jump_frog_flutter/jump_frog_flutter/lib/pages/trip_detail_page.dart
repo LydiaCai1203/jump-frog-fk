@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:geolocator/geolocator.dart';
 
 class TripDetailPage extends StatefulWidget {
   final String route;
@@ -53,6 +54,52 @@ class _TripDetailPageState extends State<TripDetailPage> {
     [],
     [],
   ];
+  Position? _position;
+  String _locationStatus = '定位中...';
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _getLocation();
+  }
+
+  Future<void> _getLocation() async {
+    debugPrint('TripDetailPage 调用 _getLocation');
+    setState(() {
+      _locating = true;
+      _locationStatus = '定位中...';
+    });
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        debugPrint('TripDetailPage 定位权限被拒绝: $permission');
+        setState(() {
+          _locationStatus = '未授权，无法获取位置';
+          _locating = false;
+        });
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _position = pos;
+        _locationStatus = '已定位';
+        _locating = false;
+      });
+    } catch (e) {
+      debugPrint('TripDetailPage 定位失败异常: ' + e.toString());
+      setState(() {
+        _locationStatus = '定位失败';
+        _locating = false;
+      });
+    }
+  }
 
   void _showCommentModal(int planIndex) {
     setState(() {
@@ -175,6 +222,77 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       const SizedBox(width: 8),
                       Text(widget.days, style: const TextStyle(fontSize: 15)),
                     ],
+                  ),
+                ),
+                // 当前位置卡片
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  child: Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on,
+                                color: Colors.green,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                '当前位置',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              if (_locating)
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              if (!_locating)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.refresh,
+                                    color: Colors.green,
+                                  ),
+                                  tooltip: '刷新位置',
+                                  onPressed: _getLocation,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _locationStatus,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (_position != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '坐标: ${_position!.latitude.toStringAsFixed(6)}, ${_position!.longitude.toStringAsFixed(6)}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
