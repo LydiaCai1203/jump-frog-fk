@@ -391,46 +391,54 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(width: 8),
             const Text('小青蛙的旅行日记'),
             const Spacer(),
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 定位状态图标
-                  Icon(
-                    Icons.location_on,
-                    color: _locating
-                        ? Colors.blue
-                        : (_position != null ||
-                              (_address != null && _address!.isNotEmpty))
-                        ? Colors.green
-                        : (_locationStatus.contains('失败') ||
-                              _locationStatus.contains('未授权') ||
-                              _locationStatus.contains('未启用'))
-                        ? Colors.red
-                        : Colors.grey,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 定位状态图标
+                Icon(
+                  Icons.location_on,
+                  color: _locating
+                      ? Colors.blue
+                      : (_position != null ||
+                            (_address != null && _address!.isNotEmpty))
+                      ? Colors.green
+                      : (_locationStatus.contains('失败') ||
+                            _locationStatus.contains('未授权') ||
+                            _locationStatus.contains('未启用'))
+                      ? Colors.red
+                      : Colors.grey,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
 
-                  // 定位状态显示
-                  if (_locating)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else if (_address != null && _address!.isNotEmpty)
-                    Text(
+                // 定位状态显示
+                if (_locating)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (_address != null && _address!.isNotEmpty)
+                  Flexible(
+                    child: Text(
                       _address!,
                       style: const TextStyle(fontSize: 13, color: Colors.green),
-                    )
-                  else if (_position != null)
-                    Text(
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  )
+                else if (_position != null)
+                  Flexible(
+                    child: Text(
                       '${_position!.latitude.toStringAsFixed(4)}, ${_position!.longitude.toStringAsFixed(4)}',
                       style: const TextStyle(fontSize: 12, color: Colors.green),
-                    )
-                  else
-                    Text(
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: Text(
                       _locationStatus,
                       style: TextStyle(
                         fontSize: 12,
@@ -441,22 +449,24 @@ class _HomePageState extends State<HomePage> {
                             ? Colors.red
                             : Colors.grey,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-
-                  // 刷新按钮
-                  IconButton(
-                    icon: const Icon(
-                      Icons.refresh,
-                      size: 18,
-                      color: Colors.green,
-                    ),
-                    tooltip: '刷新定位',
-                    onPressed: _getLocation,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
                   ),
-                ],
-              ),
+
+                // 刷新按钮
+                IconButton(
+                  icon: const Icon(
+                    Icons.refresh,
+                    size: 18,
+                    color: Colors.green,
+                  ),
+                  tooltip: '刷新定位',
+                  onPressed: _getLocation,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
           ],
         ),
