@@ -53,5 +53,9 @@
 	<string>需要获取您的位置信息用于展示当前位置和行程服务</string>
 	<key>NSLocationUsageDescription</key>
 	<string>需要获取您的位置信息用于展示当前位置和行程服务</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>iosamap</string>
+	</array>
 </dict>
 </plist>

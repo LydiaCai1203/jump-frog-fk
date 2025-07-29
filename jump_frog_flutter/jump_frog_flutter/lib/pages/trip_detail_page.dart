@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class TripDetailPage extends StatefulWidget {
   final String route;
@@ -199,6 +200,114 @@ class _TripDetailPageState extends State<TripDetailPage> {
     });
   }
 
+  Future<void> _openAmapNavigation() async {
+    if (_position == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法获取当前位置，请检查定位权限')));
+      }
+      return;
+    }
+
+    try {
+      // 首先检测高德地图是否真的安装了
+      final List<String> testUrls = ['iosamap://', 'amap://', 'amapuri://'];
+
+      bool amapInstalled = false;
+      for (String testUrl in testUrls) {
+        final Uri testUri = Uri.parse(testUrl);
+        if (await canLaunchUrl(testUri)) {
+          debugPrint('检测到高德地图安装: $testUrl');
+          amapInstalled = true;
+          break;
+        }
+      }
+
+      if (!amapInstalled) {
+        debugPrint('未检测到高德地图安装，将使用网页版');
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('未检测到高德地图App，将打开网页版导航')));
+        }
+      }
+
+      // 尝试多种高德地图 URL Scheme（根据官方文档）
+      final List<String> amapUrls = [
+        // 方案1：使用 iosamap:// 协议（iOS官方格式）
+        'iosamap://path?sourceApplication=jump_frog_flutter&sid=BGVIS1&slat=${_position!.latitude}&slon=${_position!.longitude}&sname=当前位置&did=BGVIS2&dname=${Uri.encodeComponent(widget.destination)}&dev=0&t=0',
+
+        // 方案2：使用 amap:// 协议（Android格式）
+        'amap://route/plan/?sid=BGVIS1&slat=${_position!.latitude}&slon=${_position!.longitude}&sname=当前位置&did=BGVIS2&dname=${Uri.encodeComponent(widget.destination)}&dev=0&t=0',
+
+        // 方案3：使用 amap:// 协议（简化格式）
+        'amap://route/plan/?from=${_position!.longitude},${_position!.latitude},当前位置&to=${Uri.encodeComponent(widget.destination)}&mode=car',
+
+        // 方案4：使用 amap:// 协议（最简化格式）
+        'amap://route/plan/?to=${Uri.encodeComponent(widget.destination)}&mode=car',
+
+        // 方案5：使用 amapuri:// 协议（备用格式）
+        'amapuri://route/plan/?sid=BGVIS1&slat=${_position!.latitude}&slon=${_position!.longitude}&sname=当前位置&did=BGVIS2&dname=${Uri.encodeComponent(widget.destination)}&dev=0&t=0',
+      ];
+
+      bool launched = false;
+      for (int i = 0; i < amapUrls.length; i++) {
+        String amapUrl = amapUrls[i];
+        final Uri uri = Uri.parse(amapUrl);
+        debugPrint('尝试打开高德地图方案${i + 1}: $amapUrl');
+        if (await canLaunchUrl(uri)) {
+          debugPrint('方案${i + 1}可以打开，正在启动...');
+          try {
+            final result = await launchUrl(
+              uri,
+              mode: LaunchMode.externalApplication,
+            );
+            debugPrint('方案${i + 1}启动结果: $result');
+            if (result) {
+              launched = true;
+              break;
+            } else {
+              debugPrint('方案${i + 1}启动失败');
+            }
+          } catch (e) {
+            debugPrint('方案${i + 1}启动异常: $e');
+          }
+        } else {
+          debugPrint('方案${i + 1}无法打开');
+        }
+      }
+
+      if (!launched) {
+        // 如果所有高德地图 App 方案都失败，尝试打开网页版
+        final String webUrl =
+            'https://uri.amap.com/navigation?'
+            'from=${_position!.longitude},${_position!.latitude},当前位置'
+            '&to=${Uri.encodeComponent(widget.destination)}'
+            '&mode=car'
+            '&policy=1'
+            '&src=mypage&coordinate=gaode&callnative=0';
+
+        final Uri webUri = Uri.parse(webUrl);
+        if (await canLaunchUrl(webUri)) {
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('无法打开导航应用，请确保已安装高德地图')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('打开导航失败: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final plans = [
@@ -218,30 +327,39 @@ class _TripDetailPageState extends State<TripDetailPage> {
             appBar: AppBar(
               title: Text('${widget.route} → ${widget.destination}'),
               actions: [
-                Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: widget.status == '进行中'
-                        ? Colors.green.shade100
-                        : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      widget.status,
-                      style: TextStyle(
-                        color: widget.status == '进行中'
-                            ? Colors.green
-                            : Colors.black54,
-                        fontWeight: FontWeight.bold,
+                widget.status == '进行中'
+                    ? Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: SvgPicture.asset(
+                          'assets/svg/travelling.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: const ColorFilter.mode(
+                            Colors.green,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            widget.status,
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ],
             ),
             body: Column(
@@ -297,10 +415,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
                             locationStatus: i == _currentPlanIndex
                                 ? _locationStatus
                                 : null,
-                            onNavigation: () =>
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('导航功能待实现')),
-                                ),
+                            onNavigation: _openAmapNavigation,
                             onTaxi: () =>
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('打车功能待实现')),
@@ -319,14 +434,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
                           duration: const Duration(milliseconds: 200),
                           child: _actionIndex == i
                               ? _PlanActions(
-                                  onNavigation: () =>
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('导航功能待实现'),
-                                        ),
-                                      ),
+                                  onNavigation: _openAmapNavigation,
                                   onTaxi: () => ScaffoldMessenger.of(context)
                                       .showSnackBar(
                                         const SnackBar(
