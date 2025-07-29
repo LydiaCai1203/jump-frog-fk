@@ -136,7 +136,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int _selectedTripIndex = 0;
   final List<_TripData> _trips = const [
     _TripData(
@@ -200,10 +200,38 @@ class _HomePageState extends State<HomePage> {
   final List<_ChatMessage> _chatMessages = [];
   bool _isTyping = false;
 
+  // 动画相关
+  late AnimationController _aiAvatarController;
+  late Animation<double> _aiAvatarAnimation;
+  late AnimationController _titleIconController;
+  late Animation<double> _titleIconAnimation;
+
   @override
   void initState() {
     super.initState();
     _getLocation();
+
+    // 初始化AI头像动画
+    _aiAvatarController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _aiAvatarAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _aiAvatarController, curve: Curves.elasticOut),
+    );
+
+    // 初始化标题图标呼吸动画
+    _titleIconController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _titleIconAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _titleIconController, curve: Curves.easeInOut),
+    );
+
+    // 启动标题图标呼吸动画
+    _titleIconController.repeat(reverse: true);
+
     // 添加欢迎消息
     _chatMessages.add(
       _ChatMessage(
@@ -218,6 +246,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _chatController.dispose();
     _chatScrollController.dispose();
+    _aiAvatarController.dispose();
+    _titleIconController.dispose();
     super.dispose();
   }
 
@@ -418,6 +448,9 @@ class _HomePageState extends State<HomePage> {
           );
         });
         _scrollToBottom(); // AI回复后也滚动到最新消息
+        _aiAvatarController.forward().then((_) {
+          _aiAvatarController.reverse();
+        }); // 触发AI头像跳动动画
       }
     });
   }
@@ -592,7 +625,18 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.chat_bubble, color: Colors.green),
+                          AnimatedBuilder(
+                            animation: _titleIconAnimation,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: _titleIconAnimation.value,
+                                child: const Icon(
+                                  Icons.chat_bubble,
+                                  color: Colors.green,
+                                ),
+                              );
+                            },
+                          ),
                           const SizedBox(width: 8),
                           const Text(
                             '馒馒',
@@ -816,14 +860,26 @@ class _HomePageState extends State<HomePage> {
             : MainAxisAlignment.start,
         children: [
           if (!message.isUser) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
+            AnimatedBuilder(
+              animation: _aiAvatarAnimation,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(0, -4 * _aiAvatarAnimation.value),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.smart_toy,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 8),
           ],
@@ -874,14 +930,26 @@ class _HomePageState extends State<HomePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.green,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
+          AnimatedBuilder(
+            animation: _aiAvatarAnimation,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, -4 * _aiAvatarAnimation.value),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.smart_toy,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 8),
           Container(
