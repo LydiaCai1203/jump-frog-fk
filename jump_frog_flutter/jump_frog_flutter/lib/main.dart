@@ -3,6 +3,7 @@ import 'pages/home_page.dart';
 import 'pages/my_trips_page.dart';
 import 'pages/circle_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/auth_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,6 +21,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const MainScaffold(),
+      routes: {'/auth': (context) => const AuthPage()},
     );
   }
 }

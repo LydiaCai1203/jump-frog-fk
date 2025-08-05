@@ -110,6 +110,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 24),
             _ProfileMenuItem(
+              icon: Icons.login,
+              label: '登录/注册',
+              onTap: () => Navigator.of(context).pushNamed('/auth'),
+            ),
+            _ProfileMenuItem(
               icon: Icons.settings,
               label: '设置',
               onTap: () => _onMenuTap('设置'),
